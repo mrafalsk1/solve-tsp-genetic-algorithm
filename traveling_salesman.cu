@@ -4,9 +4,9 @@
 #include <curand_kernel.h>
 #include <limits.h>
 
-#define CITIES 5
+#define CITIES 5 
 #define N_POPULATION 512
-#define GENERATIONS 100
+#define GENERATIONS 10
 #define MUTATION_RATE 0.05
 #define TOURNAMENT_SIZE 5  
 
@@ -126,7 +126,7 @@ __device__ void mutate(Individual *ind, curandState *states) {
 
 __device__ Individual* tournament_selection(Individual *population, curandState *states) {
     int best_idx = curand(&states[threadIdx.x]) % N_POPULATION;
-    for (int i = 1; i < TOURNAMENT_SIZE; ++i) {
+    for (int i = 0; i < TOURNAMENT_SIZE; ++i) {
         int competitor_idx = curand(&states[threadIdx.x]) % N_POPULATION;
         if (population[competitor_idx].fitness < population[best_idx].fitness) {
             best_idx = competitor_idx;
@@ -162,26 +162,28 @@ int main() {
     initialize_population<<<blocks, threadsPerBlock>>>(population, devStates);
     cudaDeviceSynchronize();
 
+    int best_fitness = INT_MAX;
+    int best_idx = -1;
+
     for (int gen = 0; gen < GENERATIONS; ++gen) {
         evaluate_fitness<<<blocks, threadsPerBlock>>>(cities_distances, population);
         cudaDeviceSynchronize();
 
         generate_new_population<<<blocks, threadsPerBlock>>>(population, new_population, devStates);
         cudaDeviceSynchronize();
+        
+        for (int i = 0; i < N_POPULATION; ++i) {
+            if (population[i].fitness < best_fitness) {
+                best_fitness = population[i].fitness;
+                best_idx = i;
+            }
+        }
 
         Individual *temp = population;
         population = new_population;
         new_population = temp;
     }
 
-    int best_fitness = INT_MAX;
-    int best_idx = -1;
-    for (int i = 0; i < N_POPULATION; ++i) {
-        if (population[i].fitness < best_fitness) {
-            best_fitness = population[i].fitness;
-            best_idx = i;
-        }
-    }
 
     printf("Melhor Rota: ");
     for (int i = 0; i < CITIES; ++i) {
